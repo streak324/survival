@@ -1,0 +1,4 @@
+﻿  main_surv.cpp
+C:\Users\Andrew\workspace\survival\code\main_surv.cpp(108,18): warning C4244:  'initializing': conversion from 'b32' to 'f32', possible loss of data
+C:\Users\Andrew\workspace\survival\code\main_surv.cpp(142,35): warning C4244:  '=': conversion from 'f32' to 'b32', possible loss of data
+  survival.vcxproj -> C:\Users\Andrew\workspace\survival\x64\Debug\survival.exe
