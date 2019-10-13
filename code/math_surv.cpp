@@ -50,6 +50,11 @@ f32 RandomF32Unit(random64* Rand)
     return Result;
 }
 
+f32 Abs(f32 Value)
+{
+    return fabsf(Value);
+}
+
 f32 Sqrt(f32 Value)
 {
     return sqrtf(Value);
@@ -116,12 +121,12 @@ f32 Len(v3 V)
 
 f32 Min(f32 A, f32 B)
 {
-    return A < B ? A : B;
+    return fminf(A, B);
 }
 
 f32 Max(f32 A, f32 B)
 {
-    return A > B ? A : B;
+    return fmaxf(A, B);
 }
 
 
@@ -194,6 +199,15 @@ v2 operator*(v2 V, f32 Scale)
     {
         V.X * Scale,
         V.Y * Scale,
+    };
+}
+
+v2 operator/(v2 V, f32 Divisor)
+{
+    return
+    {
+        V.X / Divisor,
+        V.Y / Divisor,
     };
 }
 

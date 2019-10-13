@@ -147,6 +147,7 @@ void SwapGameThings(i32 Thing1, i32 Thing2)
 
 b32 ResolveAnyCollision(i32 Thing1, i32 Thing2, f32 FrameTime)
 {
+    f32 CollisionEpsilon = 1 / 2048.0f;
     //with sum radius, relative position and velocity, we turn circle-circle overlap test into circle-line overlap test
 
     //summing radius
@@ -160,56 +161,68 @@ b32 ResolveAnyCollision(i32 Thing1, i32 Thing2, f32 FrameTime)
     f32 VelX = (GameThings.VelocityX[Thing2] - GameThings.VelocityX[Thing1]);
     f32 VelY = (GameThings.VelocityY[Thing2] - GameThings.VelocityY[Thing1]);
     
-    f32 VelMag = Sqrt(VelX * VelX + VelY + VelY);
+    f32 VelMag = Sqrt(VelX * VelX + VelY * VelY);
     f32 VelMagFrame = VelMag * FrameTime;
-    v2 ClosestToCenter = {0, 0};
-    v2 CenterVelAligned = {CenterX, CenterY};
-
-    if(VelMag > EPSILON)
+    f32 CenterToOriginSq = CenterX * CenterX + CenterY * CenterY;
+    if(VelMagFrame > CollisionEpsilon) //ray-circle intersection
     {
-        CenterVelAligned = ProjectVector(CenterX, CenterY, VelX, VelY);
-        ClosestToCenter = CenterVelAligned;
-    }
-    f32 AlignedMag = Len(CenterVelAligned);
-    f32 ClosestDist = Len(ClosestToCenter);
+        f32 RayX = 0;
+        f32 RayY = 0;
+        f32 RayDirX = VelX * FrameTime;
+        f32 RayDirY = VelY * FrameTime;
+        f32 DiffX = RayX - CenterX;
+        f32 DiffY = RayX - CenterY;
+        f32 DotDirDiff = (RayDirX * DiffX) + (RayDirY * DiffY);
+        f32 InsideSqrt = DotDirDiff * DotDirDiff - ((DiffX * DiffX + DiffY * DiffY) - SumRadius * SumRadius);
+        if(InsideSqrt < 0 || (CenterToOriginSq > SumRadius * SumRadius && DotDirDiff >= 0))
+        {
+            return 0; 
+        }
+        f32 SqrtValue = Sqrt(InsideSqrt);
+        f32 ResolveScalar1 = -DotDirDiff - SqrtValue;
+        f32 ResolveScalar2= -DotDirDiff + SqrtValue;
+        v2 Resolve1 = v2{VelX, VelY} * (ResolveScalar1);
+        v2 Resolve2 = v2{VelX, VelY} * (ResolveScalar2);
+        v2 Resolve = Resolve1;
+        f32 DotResolveDiff= Resolve.X * DiffX + Resolve.Y * DiffY;
+        //printf("Res1 %f Res2 %f VelX %f VelY %f CenterX %f CenterY %f Dot\n", ResolveScalar1, ResolveScalar2, VelX, VelY, CenterX, CenterY);
+        if(DotResolveDiff < 0)
+        {
+            Resolve = Resolve2;
+        }
 
-    if(ClosestDist > VelMagFrame)
+        Resolve = Resolve * FrameTime;
+        
+        GameThings.X[Thing1] -= Resolve.X * 0.5f;
+        GameThings.Y[Thing1] -= Resolve.Y * 0.5f;
+        GameThings.X[Thing2] += Resolve.X * 0.5f;
+        GameThings.Y[Thing2] += Resolve.Y * 0.5f;
+
+        GameThings.VelocityX[Thing1] = 0;
+        GameThings.VelocityY[Thing1] = 0;
+        GameThings.VelocityX[Thing2] = 0;
+        GameThings.VelocityY[Thing2] = 0;
+    }
+    else //point-circle intersection
     {
-        ClosestToCenter = {VelX, VelY};
-        ClosestDist = VelMagFrame;
+        if(CenterToOriginSq > SumRadius * SumRadius)
+        {
+            return 0; 
+        }
+        f32 CenterMag = Sqrt(CenterToOriginSq);
+        v2 CenterToOriginUnit = {CenterX / CenterMag, CenterY / CenterMag};
+        f32 MinSeparationDist =  SumRadius - CenterMag + CollisionEpsilon;
+        v2 Separation = 
+        {
+            CenterToOriginUnit.X * MinSeparationDist,
+            CenterToOriginUnit.Y * MinSeparationDist,
+        };
+
+        GameThings.X[Thing1] += Separation.X * 0.5f;
+        GameThings.Y[Thing1] += Separation.Y * 0.5f;
+        GameThings.X[Thing2] -= Separation.X * 0.5f;
+        GameThings.Y[Thing2] -= Separation.Y * 0.5f;
     }
-
-
-    f32 DiffX = ClosestToCenter.X - CenterX;
-    f32 DiffY = ClosestToCenter.Y - CenterY;
-    f32 CenterClosestDist = Len(DiffX, DiffY);
-
-    if(CenterClosestDist + EPSILON > SumRadius)
-    {
-        return 0;
-    }
-
-    ////Now, we try to find the point of intersection (entry point)
-    DiffX = CenterVelAligned.X - CenterX;
-    DiffY = CenterVelAligned.Y - CenterY;
-    f32 CenterToAlignDist= Len(DiffX, DiffY);
-    f32 EntryAlignDist = SumRadius * Sin(Acos(CenterToAlignDist/SumRadius));
-    //Our math is flawed if this assertion fails
-    Assert(AlignedMag > EntryAlignDist);
-    f32 EntryMag = EPSILON;
-    f32 EntryScale = EPSILON;
-    if(AlignedMag > EPSILON)
-    {
-        EntryMag = (AlignedMag - EntryAlignDist) / FrameTime;//have to convert back from distance change / second 
-        EntryScale =  EntryMag / AlignedMag;
-    }
-    v2 Entry = {CenterVelAligned.X * EntryScale, CenterVelAligned.Y * EntryScale};
-
-    GameThings.VelocityX[Thing1] -=  Entry.X/2;
-    GameThings.VelocityY[Thing1] -=  Entry.Y/2;
-
-    GameThings.VelocityX[Thing2] +=  Entry.X/2;
-    GameThings.VelocityY[Thing2] +=  Entry.Y/2;
 
     return 1;
 }
@@ -222,14 +235,16 @@ i32 AddGameThing()
     return Index;
 }
 
-void UseCollideColors(i32 Thing) {
+void UseCollideColors(i32 Thing)
+{
     GameThings.ColorR[Thing] = 1;
     GameThings.ColorG[Thing] = 0;
     GameThings.ColorB[Thing] = 0;
     GameThings.ColorA[Thing] = 1;
 }
 
-void UseNonCollideColors(i32 Thing) {
+void UseNonCollideColors(i32 Thing)
+{
     GameThings.ColorR[Thing] = 1;
     GameThings.ColorG[Thing] = 1;
     GameThings.ColorB[Thing] = 1;
