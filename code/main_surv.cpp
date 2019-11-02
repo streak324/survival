@@ -11,6 +11,8 @@
 
 u64 PlatformCycleCount;
 
+b32 DebuggingSwept = 1;
+
 const char MainVertexShader[] =
 {
     "#version 330 core\n"
@@ -66,6 +68,7 @@ i32 SpeedyThing = 0;
 
 #define TOGGLE_PAUSE 1
 #define TOGGLE_NEXT_FRAME 2
+#define TOGGLE_DEBUG_SWEPT 3
 struct game_input
 {
     b32 MoveUp;
@@ -164,7 +167,7 @@ b32 ResolveAnyCollision(i32 Thing1, i32 Thing2, f32 FrameTime)
     f32 VelMag = Sqrt(VelX * VelX + VelY * VelY);
     f32 VelMagFrame = VelMag * FrameTime;
     f32 CenterToOriginSq = CenterX * CenterX + CenterY * CenterY;
-    if(VelMagFrame > CollisionEpsilon) //ray-circle intersection
+    if(DebuggingSwept && VelMagFrame > CollisionEpsilon) //ray-circle intersection
     {
         f32 RayX = 0;
         f32 RayY = 0;
@@ -174,7 +177,7 @@ b32 ResolveAnyCollision(i32 Thing1, i32 Thing2, f32 FrameTime)
         f32 DiffY = RayX - CenterY;
         f32 DotDirDiff = (RayDirX * DiffX) + (RayDirY * DiffY);
         f32 InsideSqrt = DotDirDiff * DotDirDiff - ((DiffX * DiffX + DiffY * DiffY) - SumRadius * SumRadius);
-        if(InsideSqrt < 0 || (CenterToOriginSq > SumRadius * SumRadius && DotDirDiff >= 0))
+        if(InsideSqrt < 0 || (CenterToOriginSq + CollisionEpsilon > SumRadius * SumRadius && DotDirDiff >= 0))
         {
             return 0; 
         }
@@ -184,24 +187,62 @@ b32 ResolveAnyCollision(i32 Thing1, i32 Thing2, f32 FrameTime)
         v2 Resolve1 = v2{VelX, VelY} * (ResolveScalar1);
         v2 Resolve2 = v2{VelX, VelY} * (ResolveScalar2);
         v2 Resolve = Resolve1;
+        f32 ResolveScalar = ResolveScalar1;
         f32 DotResolveDiff= Resolve.X * DiffX + Resolve.Y * DiffY;
         //printf("Res1 %f Res2 %f VelX %f VelY %f CenterX %f CenterY %f Dot\n", ResolveScalar1, ResolveScalar2, VelX, VelY, CenterX, CenterY);
         if(DotResolveDiff < 0)
         {
             Resolve = Resolve2;
+            ResolveScalar = ResolveScalar2;
         }
 
-        Resolve = Resolve * FrameTime;
+        v2 ResolveFrame = Resolve * FrameTime;
         
-        GameThings.X[Thing1] -= Resolve.X * 0.5f;
-        GameThings.Y[Thing1] -= Resolve.Y * 0.5f;
-        GameThings.X[Thing2] += Resolve.X * 0.5f;
-        GameThings.Y[Thing2] += Resolve.Y * 0.5f;
+        GameThings.X[Thing1] -= ResolveFrame.X * 0.5f;
+        GameThings.Y[Thing1] -= ResolveFrame.Y * 0.5f;
+        GameThings.X[Thing2] += ResolveFrame.X * 0.5f;
+        GameThings.Y[Thing2] += ResolveFrame.Y * 0.5f;
 
-        GameThings.VelocityX[Thing1] = 0;
-        GameThings.VelocityY[Thing1] = 0;
-        GameThings.VelocityX[Thing2] = 0;
-        GameThings.VelocityY[Thing2] = 0;
+        if(ResolveScalar < 1)
+        {
+            f32 VelScalar = (1 - Abs(ResolveScalar));
+            v2 Vel1 = v2{GameThings.VelocityX[Thing1], GameThings.VelocityY[Thing1]} * VelScalar;
+            v2 Vel2 = v2{GameThings.VelocityX[Thing2], GameThings.VelocityY[Thing2]} * VelScalar;
+
+            f32 VelMag1 = Len(Vel1);
+            f32 VelMag2 = Len(Vel2);
+
+            v2 Normal1 = {GameThings.X[Thing2] - GameThings.X[Thing1], GameThings.Y[Thing2] - GameThings.Y[Thing1]};
+            f32 NormalLen = Len(Normal1);
+            Normal1 = Normal1 / NormalLen; 
+            v2 Normal2 = -Normal1;
+
+            v2 Perp1 = v2{-Normal1.Y, Normal1.X} * VelMag1;
+            f32 DotPerpVel1 = Dot(Perp1, Vel1);
+            if(DotPerpVel1 < 0)
+            {
+                Perp1 = -Perp1;
+            }
+            v2 Perp2 = v2{-Normal2.Y, Normal2.X} * VelMag2;
+            f32 DotPerpVel2 = Dot(Perp2, Vel2);
+            if(DotPerpVel2 < 0)
+            {
+                Perp2 = -Perp2;
+            }
+
+            //if they are moving the same direction or one of them is stationary, they will get stuck together
+            //printf("Vel1: (%f %f) Perp1: (%f %f) Vel2: (%f %f) Perp2: (%f %f)\n", Vel1.X, Vel1.Y, Perp1.X, Perp1.Y, Vel2.X, Vel2.Y, Perp2.X, Perp2.Y);
+            GameThings.VelocityX[Thing1] = Vel2.X + Perp1.X;
+            GameThings.VelocityY[Thing1] = Vel2.Y + Perp1.Y;
+            GameThings.VelocityX[Thing2] = Vel1.X + Perp2.X;
+            GameThings.VelocityY[Thing2] = Vel1.Y + Perp2.Y;
+        } else {
+            GameThings.VelocityX[Thing1] = 0;
+            GameThings.VelocityY[Thing1] = 0;
+            GameThings.VelocityX[Thing2] = 0;
+            GameThings.VelocityY[Thing2] = 0;
+        }
+
     }
     else //point-circle intersection
     {
@@ -312,6 +353,10 @@ void RunFrame(f32 FrameTime)
     {
         GamePaused = !GamePaused;
     }
+    if(!PreviousGameInput.Extra[TOGGLE_DEBUG_SWEPT] && GameInput.Extra[TOGGLE_DEBUG_SWEPT])
+    {
+        DebuggingSwept = !DebuggingSwept;
+    }
 
     StartRenderBatch();
     #define CircleRenderSegments 360
@@ -416,7 +461,7 @@ int main()
     GameThings.ColorB[SpeedyThing] = 0;
     GameThings.ColorA[SpeedyThing] = 1;
     GameThings.Immobile[SpeedyThing] = 0;
-    GameThings.Speed[SpeedyThing] = 100;
+    GameThings.Speed[SpeedyThing] = 5;
     GameThings.Collideable[SpeedyThing] = 1;
 
     while(GameRunning)
@@ -434,6 +479,7 @@ int main()
         GameInput.Extra[0] = KeyStates[SDL_SCANCODE_V];
         GameInput.Extra[TOGGLE_PAUSE] = KeyStates[SDL_SCANCODE_P];
         GameInput.Extra[TOGGLE_NEXT_FRAME] = KeyStates[SDL_SCANCODE_N];
+        GameInput.Extra[TOGGLE_DEBUG_SWEPT] = KeyStates[SDL_SCANCODE_O];
 
         mat4 ProjViewMat = Projection;
         GLint ProjViewLoc = glGetUniformLocation(MainShaderProgram, "ProjView");

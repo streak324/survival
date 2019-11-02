@@ -141,6 +141,11 @@ v2 operator-(v2 A, v2 B)
     return {A.X - B.X, A.Y - B.Y};
 }
 
+v2 operator-(v2 A)
+{
+    return {-A.X, -A.Y};
+}
+
 v3 operator+(v3 V1, v3 V2)
 {
     return
@@ -492,6 +497,12 @@ quat CreateRotation(v3 From, v3 To)
     }
     v3 RotationAxis = NormV3(Cross(From, To));
     return CreateRotation(RotationAxis, Angle);
+}
+
+
+f32 Dot(v2 A, v2 B)
+{
+    return A.X * B.X + A.Y * B.Y;
 }
 
 f32 Dot(v3 A, v3 B)
