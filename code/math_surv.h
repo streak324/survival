@@ -9,56 +9,56 @@
 
 struct v2
 {
-    f32 X, Y;
+	f32 X, Y;
 };
 
 union v3
 {
-    f32 F[3];
-    struct
-    {
-        float X, Y, Z;
-    };
+	f32 F[3];
+	struct
+	{
+		float X, Y, Z;
+	};
 };
 
 struct quat
 {
-    union
-    {
-        v3 Axis;
-        struct
-        {
-            f32 X, Y, Z;
-        };
-    };
-    f32 W;
+	union
+	{
+		v3 Axis;
+		struct
+		{
+			f32 X, Y, Z;
+		};
+	};
+	f32 W;
 };
 
 union v4
 {
-    f32 F[4];
-    struct
-    {
-        f32 X, Y, Z, W;
-    };
+	f32 F[4];
+	struct
+	{
+		f32 X, Y, Z, W;
+	};
 };
 
 //Note(andrew): colum-major order
 union mat4
 {
-    f32 M[16];
-    struct
-    {
-        f32 M00, M01, M02, M03,
-            M10, M11, M12, M13,
-            M20, M21, M22, M23,
-            M30, M31, M32, M33;
-    };
+	f32 M[16];
+	struct
+	{
+		f32 M00, M01, M02, M03,
+			M10, M11, M12, M13,
+			M20, M21, M22, M23,
+			M30, M31, M32, M33;
+	};
 };
 
 struct random64
 {
-    u64 State;
+	u64 State;
 };
 
 const v3 XAxis = {1, 0, 0};
